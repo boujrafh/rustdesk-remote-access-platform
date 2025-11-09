@@ -1,0 +1,58 @@
+services:
+  # RustDesk hbbs server (ID/Rendezvous server)
+  hbbs:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbs-dev
+    command: hbbs -r ${RELAY_SERVER}:21117 -k _
+    volumes:
+      - ./data:/root
+    networks:
+      - rustdesk-network
+    ports:
+      - "21115:21115"
+      - "21116:21116"
+      - "21116:21116/udp"
+      - "21118:21118"
+    restart: unless-stopped
+    environment:
+      - RELAY_SERVER=${RELAY_SERVER}
+    depends_on:
+      - hbbr
+
+  # RustDesk hbbr server (Relay server)
+  hbbr:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbr-dev
+    command: hbbr -k _
+    volumes:
+      - ./data:/root
+    networks:
+      - rustdesk-network
+    ports:
+      - "21117:21117"
+      - "21119:21119"
+    restart: unless-stopped
+
+  # Nginx reverse proxy (sans SSL pour le dev)
+  nginx:
+    image: nginx:alpine
+    container_name: rustdesk-nginx-dev
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/rustdesk.dev.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - rustdesk-network
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    depends_on:
+      - hbbs
+      - hbbr
+
+networks:
+  rustdesk-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET}

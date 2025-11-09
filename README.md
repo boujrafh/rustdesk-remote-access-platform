@@ -4,19 +4,43 @@ Production-ready RustDesk server with Docker, Nginx reverse proxy, and optional 
 
 ## 🚀 Quick Start
 
+### Développement Local
+
+Pour tester en local sans configuration complexe :
+
 ```bash
-# Clone the repository
+# Clone le repository
 git clone https://github.com/boujrafh/rustdesk-remote-access-platform.git
 cd rustdesk-remote-access-platform
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your configuration
+# Démarrer avec la configuration de développement
+docker-compose -f docker-compose.dev.yml --env-file .env.dev up -d
 
-# Start services
+# Vérifier le statut
+docker-compose -f docker-compose.dev.yml ps
+```
+
+**Configuration client en dev :**
+- Serveur ID: `localhost` ou `127.0.0.1`
+- Port: `21116`
+
+### Production
+
+```bash
+# Configurer l'environnement
+cp .env.example .env
+# Éditer .env avec vos valeurs
+
+# Générer les secrets requis
+openssl rand -base64 32  # Pour les mots de passe
+
+# Démarrer les services (minimal)
 docker-compose up -d
 
-# Check status
+# OU avec API et base de données (complet)
+docker-compose --profile full up -d
+
+# Vérifier le statut
 docker-compose ps
 ```
 
@@ -29,6 +53,28 @@ docker-compose ps
 - ✅ **Production Security** - Hardened configuration with SSL, rate limiting, and security headers
 - ✅ **Scalable Architecture** - Supports thousands of concurrent devices
 - ✅ **Comprehensive Documentation** - Admin and user guides included
+- ✅ **Automated Deployment Scripts** - Windows, Linux, and macOS support
+
+## 🖥️ Client Deployment
+
+Des scripts de déploiement automatique sont disponibles pour installer et configurer RustDesk sur vos machines :
+
+- **Windows** : PowerShell script avec support GPO/SCCM
+- **Linux** : Bash script (Ubuntu, Debian, RHEL, CentOS, Fedora)
+- **macOS** : Bash script (Intel et Apple Silicon)
+
+Voir la documentation complète : [deployment/README.md](deployment/README.md)
+
+### Déploiement rapide
+
+```powershell
+# Windows (en tant qu'administrateur)
+.\deployment\deploy-windows.ps1 -Environment dev
+
+# Linux/macOS
+sudo bash deployment/deploy-linux.sh dev
+sudo bash deployment/deploy-macos.sh dev
+```
 
 ## 🏗️ Architecture
 
