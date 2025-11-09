@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # RustDesk hbbs server (ID/Rendezvous server)
+  hbbs:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbs
+    command: hbbs -r ${RELAY_SERVER}:21117 -k _
+    volumes:
+      - ./data:/root
+    networks:
+      - rustdesk-network
+    ports:
+      - "21115:21115"
+      - "21116:21116"
+      - "21116:21116/udp"
+      - "21118:21118"
+    restart: unless-stopped
+    environment:
+      - RELAY_SERVER=${RELAY_SERVER}
+    depends_on:
+      - hbbr
+
+  # RustDesk hbbr server (Relay server)
+  hbbr:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbr
+    command: hbbr -k _
+    volumes:
+      - ./data:/root
+    networks:
+      - rustdesk-network
+    ports:
+      - "21117:21117"
+      - "21119:21119"
+    restart: unless-stopped
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: rustdesk-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - rustdesk-network
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    depends_on:
+      - hbbs
+      - hbbr
+
+  # Optional: Rustdesk API server (for web console)
+  rustdesk-api:
+    image: rustdesk/rustdesk-api-server:latest
+    container_name: rustdesk-api
+    networks:
+      - rustdesk-network
+    ports:
+      - "21114:21114"
+    environment:
+      - DB_URL=${DB_URL}
+      - LDAP_SERVER=${LDAP_SERVER}
+      - LDAP_BASE_DN=${LDAP_BASE_DN}
+      - LDAP_BIND_DN=${LDAP_BIND_DN}
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
+    volumes:
+      - ./api-data:/data
+    restart: unless-stopped
+    profiles:
+      - full
+
+  # PostgreSQL database for API server
+  postgres:
+    image: postgres:15-alpine
+    container_name: rustdesk-db
+    networks:
+      - rustdesk-network
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - full
+
+networks:
+  rustdesk-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET}
+
+volumes:
+  rustdesk-data:
+  postgres-data:
+  api-data:

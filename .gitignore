@@ -1,0 +1,46 @@
+# Ignore environment files
+.env
+.env.local
+.env.*.local
+
+# Ignore data directories
+data/
+postgres-data/
+api-data/
+backups/
+
+# Ignore SSL certificates
+certs/*.pem
+certs/*.key
+certs/*.crt
+
+# Ignore logs
+*.log
+nginx/logs/
+logs/
+
+# Ignore temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Ignore Docker volumes
+volumes/
+
+# Keep directory structure
+!data/.gitkeep
+!postgres-data/.gitkeep
+!api-data/.gitkeep
+!certs/.gitkeep
+!nginx/logs/.gitkeep
