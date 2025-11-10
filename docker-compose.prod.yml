@@ -1,0 +1,251 @@
+# Docker Compose - Production avec Relay Séparé
+# Architecture haute disponibilité pour 8000 machines
+# Relay serveur séparé pour meilleures performances
+
+services:
+  # =========================================================================
+  # ID/Rendezvous Server (hbbs) - Gestion des connexions
+  # =========================================================================
+  hbbs:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbs
+    command: hbbs -r ${RELAY_SERVER}:21117 -k _
+    volumes:
+      - ./data:/root
+    networks:
+      rustdesk-network:
+        ipv4_address: ${DOCKER_SUBNET%.0/24}.10
+    ports:
+      - "${HBBS_IP}:21115:21115"      # NAT test
+      - "${HBBS_IP}:21116:21116"      # Registration TCP
+      - "${HBBS_IP}:21116:21116/udp"  # Registration UDP
+      - "${HBBS_IP}:21118:21118"      # Web socket
+    restart: unless-stopped
+    environment:
+      - RELAY_SERVER=${RELAY_SERVER}
+      - RUST_LOG=${LOG_LEVEL}
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "21116"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+  # =========================================================================
+  # Relay Server Principal (hbbr) - Trafic de données
+  # =========================================================================
+  hbbr:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbr
+    command: hbbr -k _
+    volumes:
+      - ./data:/root
+    networks:
+      rustdesk-network:
+        ipv4_address: ${DOCKER_SUBNET%.0/24}.11
+    ports:
+      - "${HBBR_PRIMARY_IP}:21117:21117"  # Relay TCP
+      - "${HBBR_PRIMARY_IP}:21119:21119"  # Relay Web socket
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=${LOG_LEVEL}
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "21117"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 1G
+
+  # =========================================================================
+  # Relay Server Secondaire (optionnel) - Haute disponibilité
+  # =========================================================================
+  hbbr-secondary:
+    image: rustdesk/rustdesk-server:latest
+    container_name: rustdesk-hbbr-secondary
+    command: hbbr -k _
+    volumes:
+      - ./data:/root
+    networks:
+      rustdesk-network:
+        ipv4_address: ${DOCKER_SUBNET%.0/24}.12
+    ports:
+      - "${HBBR_SECONDARY_IP:-10.10.0.102}:21117:21117"
+      - "${HBBR_SECONDARY_IP:-10.10.0.102}:21119:21119"
+    restart: unless-stopped
+    environment:
+      - RUST_LOG=${LOG_LEVEL}
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "21117"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 1G
+    profiles:
+      - ha  # Haute disponibilité
+
+  # =========================================================================
+  # Nginx Reverse Proxy - SSL/TLS Termination
+  # =========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: rustdesk-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - rustdesk-network
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    depends_on:
+      - hbbs
+      - hbbr
+      - rustdesk-api
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  # =========================================================================
+  # API Server (optionnel) - Web Console
+  # =========================================================================
+  rustdesk-api:
+    image: rustdesk/rustdesk-api-server:latest
+    container_name: rustdesk-api
+    networks:
+      - rustdesk-network
+    ports:
+      - "21114:21114"
+    environment:
+      - DB_URL=${DB_URL}
+      - LDAP_ENABLED=${LDAP_ENABLED}
+      - LDAP_SERVER=${LDAP_SERVER}
+      - LDAP_BASE_DN=${LDAP_BASE_DN}
+      - LDAP_BIND_DN=${LDAP_BIND_DN}
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD}
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - SESSION_SECRET=${SESSION_SECRET}
+    volumes:
+      - ./api-data:/data
+      - ./logs:/var/log/rustdesk
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:21114/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    profiles:
+      - full
+
+  # =========================================================================
+  # PostgreSQL Database - API Backend
+  # =========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: rustdesk-db
+    networks:
+      - rustdesk-network
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+      - ./postgres-backups:/backups
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    profiles:
+      - full
+
+  # =========================================================================
+  # Redis Cache (optionnel) - Performance
+  # =========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: rustdesk-redis
+    command: redis-server --appendonly yes --requirepass ${SESSION_SECRET}
+    networks:
+      - rustdesk-network
+    volumes:
+      - ./redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    profiles:
+      - full
+
+networks:
+  rustdesk-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${DOCKER_SUBNET}
+          gateway: ${DOCKER_SUBNET%.0/24}.1
+
+volumes:
+  data:
+  postgres-data:
+  postgres-backups:
+  redis-data:
+  api-data:
+  logs:
