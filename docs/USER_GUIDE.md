@@ -8,10 +8,11 @@ Welcome to RustDesk! This guide will help you connect to and use the remote desk
 2. [Installing the Client](#installing-the-client)
 3. [Configuring the Connection](#configuring-the-connection)
 4. [Connecting to a Remote Computer](#connecting-to-a-remote-computer)
-5. [Features & Controls](#features--controls)
-6. [Troubleshooting](#troubleshooting)
-7. [Security Tips](#security-tips)
-8. [FAQ](#faq)
+5. [Configuring Unattended Access (No Permission Required)](#configuring-unattended-access-no-permission-required)
+6. [Features & Controls](#features--controls)
+7. [Troubleshooting](#troubleshooting)
+8. [Security Tips](#security-tips)
+9. [FAQ](#faq)
 
 ---
 
@@ -191,6 +192,398 @@ Password: abc123
 3. Browse available computers
 
 4. Click "Connect" on desired computer
+
+---
+
+---
+
+## Configuring Unattended Access (No Permission Required)
+
+### Overview
+
+**Unattended Access** allows you to connect to a remote computer **without someone accepting the connection**. This is useful for:
+
+- 🏠 **Accessing your work computer from home**
+- 🖥️ **Managing servers without physical access**
+- 🔧 **Providing IT support to unattended machines**
+- 💼 **Accessing your office PC during off-hours**
+
+⚠️ **Security Note**: Only enable unattended access on computers you own or have permission to access remotely.
+
+---
+
+### Method 1: Permanent Password (Recommended)
+
+This is the **simplest method** for unattended access.
+
+#### On the Remote Computer (to be accessed):
+
+1. **Open RustDesk**
+
+2. **Click on the 3 dots** (⋮) in the top-right corner → **"Settings"**
+
+3. **Go to "Security" tab**
+
+4. **Find "Password" section**:
+   - ✅ **Check "Use permanent password"**
+   - 📝 **Enter a strong password**:
+     ```
+     Example: MySecurePass2024!
+     ```
+   - ⚠️ **Important**: Use a strong password (minimum 12 characters, mix of upper/lower case, numbers, symbols)
+
+5. **Click "Apply"**
+
+6. **Note the computer's ID** (displayed on main screen)
+
+#### From Your Computer (to connect):
+
+1. **Open RustDesk**
+
+2. **Enter the Remote ID**
+
+3. **Click "Connect"**
+
+4. **Enter the permanent password** you set earlier
+
+5. ✅ **Connection established** - No one needs to accept!
+
+---
+
+### Method 2: Full Unattended Configuration
+
+For **complete automation** without any prompts.
+
+#### On the Remote Computer:
+
+1. **Open RustDesk** → **Settings** (⋮)
+
+2. **Security Tab**:
+
+   **Password Section**:
+   - ✅ **Use permanent password**: Set a strong password
+   
+   **Access Control Section**:
+   - ✅ **Enable unattended access**
+   - ✅ **Enable direct IP access** (optional)
+   - ❌ **Disable confirmation window** (uncheck if checked)
+   
+   **Permissions** (choose what you want to allow):
+   - ✅ **Enable keyboard**
+   - ✅ **Enable clipboard**
+   - ✅ **Enable file transfer**
+   - ✅ **Enable audio**
+   - ⚠️ **Show remote cursor** (optional - can disable for privacy)
+
+3. **General Tab** (optional - for auto-start):
+   - ✅ **Start with system**
+   - ✅ **Start minimized**
+
+4. **Click "Apply"**
+
+#### Configuration Summary
+
+After setup, your remote computer will:
+- ✅ Start RustDesk automatically on boot
+- ✅ Accept connections without confirmation
+- ✅ Use the permanent password
+- ✅ No popup windows
+- ✅ Silent operation
+
+---
+
+### Method 3: Scripted Configuration (Advanced)
+
+For **IT Administrators** deploying to multiple machines.
+
+#### Windows PowerShell Script
+
+```powershell
+# Configure RustDesk for Unattended Access
+# Run as Administrator
+
+# Set permanent password
+$password = "YourStrongPassword2024!"
+$regPath = "HKCU:\Software\RustDesk\config"
+
+# Create registry keys
+New-Item -Path $regPath -Force | Out-Null
+
+# Configure server
+Set-ItemProperty -Path $regPath -Name "custom-rendezvous-server" -Value "192.168.129.53"
+Set-ItemProperty -Path $regPath -Name "relay-server" -Value "192.168.129.53"
+Set-ItemProperty -Path $regPath -Name "key" -Value "zTvrPCjiYLzWb1slrsULfjhtx59jiA0jum6k21IZHuE="
+
+# Enable unattended access
+Set-ItemProperty -Path $regPath -Name "option-enable-directx-capture" -Value 1
+Set-ItemProperty -Path $regPath -Name "option-enable-keyboard" -Value 1
+Set-ItemProperty -Path $regPath -Name "option-enable-clipboard" -Value 1
+Set-ItemProperty -Path $regPath -Name "option-enable-file-transfer" -Value 1
+
+# Set permanent password (encrypted)
+# Note: Password should be set via RustDesk UI for proper encryption
+Write-Host "✅ Configuration completed. Please set permanent password via RustDesk UI."
+Write-Host "   Settings → Security → Use permanent password"
+
+# Restart RustDesk
+Stop-Process -Name "rustdesk" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+Start-Process "C:\Program Files\RustDesk\rustdesk.exe"
+```
+
+#### Linux Bash Script
+
+```bash
+#!/bin/bash
+# Configure RustDesk for Unattended Access
+
+# Create config directory
+mkdir -p ~/.config/rustdesk
+
+# Create configuration file
+cat > ~/.config/rustdesk/RustDesk.toml << 'EOF'
+[options]
+relay-server = "192.168.129.53"
+id-server = "192.168.129.53"
+key = "zTvrPCjiYLzWb1slrsULfjhtx59jiA0jum6k21IZHuE="
+enable-keyboard = true
+enable-clipboard = true
+enable-file-transfer = true
+enable-audio = true
+EOF
+
+# Set permissions
+chmod 600 ~/.config/rustdesk/RustDesk.toml
+
+echo "✅ Configuration completed."
+echo "⚠️  Please set permanent password via RustDesk UI:"
+echo "   Settings → Security → Use permanent password"
+
+# Restart RustDesk
+killall rustdesk 2>/dev/null
+sleep 2
+rustdesk &
+
+echo "✅ RustDesk restarted with new configuration."
+```
+
+---
+
+### Security Best Practices for Unattended Access
+
+#### 1. Strong Passwords
+
+✅ **DO**:
+- Use 16+ characters
+- Mix: uppercase, lowercase, numbers, symbols
+- Use unique password (not reused elsewhere)
+- Example: `Rd$k2024!Secure#Access`
+
+❌ **DON'T**:
+- Use simple passwords: `password123`
+- Use personal info: `john1980`
+- Use common words: `admin`, `welcome`
+
+#### 2. Access Logging
+
+Monitor who connects:
+1. **Settings** → **Logs**
+2. Review connection history regularly
+3. Look for unexpected connections
+
+#### 3. IP Restrictions (Advanced)
+
+Limit connections to specific IPs:
+1. **Settings** → **Security** → **IP Whitelist**
+2. Add allowed IPs: `192.168.1.100, 10.0.0.50`
+3. Block all others
+
+#### 4. Two-Factor Authentication (If Available)
+
+Enable 2FA for extra security:
+1. **Settings** → **Security** → **2FA**
+2. Scan QR code with authenticator app
+3. Enter 6-digit code on each connection
+
+#### 5. Regular Audits
+
+- ✓ Change passwords every 90 days
+- ✓ Review access logs monthly
+- ✓ Remove unattended access when not needed
+- ✓ Update RustDesk client regularly
+
+---
+
+### Quick Setup Checklist
+
+#### Remote Computer (to be accessed)
+
+- [ ] RustDesk installed and running
+- [ ] Connected to your custom server (192.168.129.53)
+- [ ] Public key configured (zTvrPCjiYLzWb1slrsULfjhtx59jiA0jum6k21IZHuE=)
+- [ ] Permanent password set (16+ characters)
+- [ ] "Use permanent password" enabled
+- [ ] "Enable unattended access" enabled
+- [ ] "Enable confirmation window" **disabled**
+- [ ] "Start with system" enabled (optional)
+- [ ] Computer ID noted down
+- [ ] Test connection successful
+
+#### Your Computer (connecting from)
+
+- [ ] RustDesk installed
+- [ ] Connected to your custom server (192.168.129.53)
+- [ ] Public key configured
+- [ ] Remote computer ID saved in address book
+- [ ] Permanent password saved (password manager recommended)
+- [ ] Test connection successful without prompts
+
+---
+
+### Troubleshooting Unattended Access
+
+#### Still Asking for Permission
+
+**Problem**: Remote computer shows "Accept" dialog
+
+**Solutions**:
+1. Check "Enable confirmation window" is **disabled**:
+   - Remote PC → Settings → Security → ❌ Disable confirmation window
+2. Verify "Enable unattended access" is **checked**
+3. Restart RustDesk on remote PC
+4. Ensure permanent password is set (not temporary)
+
+#### Connection Refused
+
+**Problem**: "Connection failed" or "Target offline"
+
+**Solutions**:
+1. Check remote computer is powered on
+2. Verify RustDesk is running (check system tray)
+3. Check firewall allows RustDesk (ports 21115-21119)
+4. Test network connectivity: `ping remote-ip`
+5. Verify both machines use same server and key
+
+#### Wrong Password Every Time
+
+**Problem**: Password works manually but fails in address book
+
+**Solutions**:
+1. Re-save password in address book
+2. Copy-paste password instead of typing
+3. Check for extra spaces in password field
+4. Verify password on remote PC (Settings → Security → Show password)
+5. Reset permanent password on remote PC
+
+#### Remote Computer Sleeps/Hibernates
+
+**Problem**: Cannot connect when computer is asleep
+
+**Solutions**:
+
+**Windows**:
+1. Control Panel → Power Options
+2. Change plan settings
+3. "Put computer to sleep": **Never**
+4. Advanced settings → Sleep → Allow hybrid sleep: **On**
+5. Enable "Wake on LAN" in BIOS (if supported)
+
+**Linux**:
+```bash
+# Disable sleep
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+# Or via GUI: Settings → Power → Automatic suspend: Never
+```
+
+**macOS**:
+1. System Preferences → Energy Saver
+2. "Prevent computer from sleeping automatically": **Check**
+3. Or Terminal:
+```bash
+sudo pmset -a disablesleep 1
+```
+
+---
+
+### Example: Home Office Setup
+
+**Scenario**: You want to access your office PC from home.
+
+#### Setup (One-time, at the office):
+
+1. **On your office PC**:
+   ```
+   Settings → Security:
+     ✅ Use permanent password: OfficePC2024!Secure
+     ✅ Enable unattended access
+     ❌ Disable confirmation window
+     ✅ Enable keyboard/clipboard/file transfer
+   
+   Settings → General:
+     ✅ Start with system
+     ✅ Start minimized
+   
+   Note ID: 123456789
+   ```
+
+2. **Test locally** (same office network):
+   - Connect from another PC
+   - Verify no prompts appear
+   - Ensure password works
+
+#### Daily Use (From home):
+
+1. **Connect to company VPN** (if required)
+
+2. **Open RustDesk**
+
+3. **Enter office PC ID**: `123456789`
+
+4. **Enter permanent password**: `OfficePC2024!Secure`
+
+5. **Click Connect** → ✅ Immediate access!
+
+---
+
+### Example: IT Support Scenario
+
+**Scenario**: IT needs to support 50 unattended servers.
+
+#### Deployment Script (All servers):
+
+```powershell
+# deploy-unattended.ps1
+# Run on each server via GPO or SCCM
+
+# Install RustDesk
+$installer = "\\fileserver\share\rustdesk-setup.exe"
+Start-Process $installer -ArgumentList "/VERYSILENT /NORESTART" -Wait
+
+# Configure server
+$regPath = "HKLM:\SOFTWARE\RustDesk\config"
+New-Item -Path $regPath -Force | Out-Null
+Set-ItemProperty -Path $regPath -Name "custom-rendezvous-server" -Value "rustdesk.company.com"
+Set-ItemProperty -Path $regPath -Name "key" -Value "YOUR_PUBLIC_KEY_HERE"
+
+# Set standard password (change after deployment!)
+# Password should be set via RustDesk UI for encryption
+
+# Enable auto-start
+$startupPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+Set-ItemProperty -Path $startupPath -Name "RustDesk" -Value '"C:\Program Files\RustDesk\rustdesk.exe" --service'
+
+Write-Host "✅ RustDesk deployed and configured for unattended access"
+```
+
+#### Address Book (IT technician):
+
+```
+Server01 - ID: 111111111 - Password: [Password Manager]
+Server02 - ID: 222222222 - Password: [Password Manager]
+Server03 - ID: 333333333 - Password: [Password Manager]
+...
+```
 
 ---
 
